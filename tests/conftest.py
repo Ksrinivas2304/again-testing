@@ -1,8 +1,11 @@
 import os
 import sys
+from pathlib import Path
 
-_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_backend = os.path.join(_root, 'backend')
-sys.path.insert(0, _root)
-if os.path.isdir(_backend):
-    sys.path.insert(0, _backend)
+_root = Path(__file__).resolve().parent.parent
+_backend = _root / "backend"
+sys.path.insert(0, str(_root))
+if _backend.is_dir():
+    sys.path.insert(0, str(_backend))
+
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
