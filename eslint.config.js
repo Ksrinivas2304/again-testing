@@ -6,10 +6,10 @@ import globals from 'globals';
 
 export default [
   {
-    ignores: ['dist'],
+    ignores: ['dist', 'node_modules'],
   },
   {
-    files: ['**/*.{js,jsx}'],
+    files: ['**/*.{js,jsx,ts,tsx}'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
