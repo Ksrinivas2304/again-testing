@@ -1,41 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  CheckCircle2,
-  Circle,
-  ClipboardList,
-  LoaderCircle,
-  Plus,
-  RefreshCw,
-  Trash2,
-} from 'lucide-react';
-import {
-  createTodo,
-  deleteTodo,
-  fetchTodos,
-  toggleTodo,
-} from './api-client/todos';
-import './App.css';
+import { AlertCircle, CheckCircle2, ClipboardList, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { createTodo, deleteTodo, fetchTodos, updateTodo } from './api-client/todos';
 
-function TodoSkeleton() {
+function LoadingSkeleton() {
   return (
-    <ul className="todo-list" aria-hidden="true">
-      {Array.from({ length: 3 }).map((_, index) => (
-        <li key={index} className="todo-item skeleton-item">
-          <div className="skeleton skeleton-toggle" />
-          <div className="skeleton skeleton-text" />
-          <div className="skeleton skeleton-action" />
-        </li>
+    <div className="todo-list" aria-hidden="true">
+      {[0, 1, 2].map((item) => (
+        <div className="todo-card skeleton" key={item}>
+          <div className="skeleton-line skeleton-line-lg" />
+          <div className="skeleton-line" />
+        </div>
       ))}
-    </ul>
+    </div>
   );
 }
 
 function EmptyState() {
   return (
     <div className="state-card empty-state">
-      <ClipboardList className="state-icon" aria-hidden="true" />
+      <ClipboardList size={40} />
       <h2>No todos yet</h2>
-      <p>Create your first task to get started.</p>
+      <p>Create your first task to start tracking what matters today.</p>
     </div>
   );
 }
@@ -43,10 +28,11 @@ function EmptyState() {
 function ErrorState({ message, onRetry }) {
   return (
     <div className="state-card error-state" role="alert">
+      <AlertCircle size={40} />
       <h2>Unable to load todos</h2>
       <p>{message}</p>
-      <button type="button" className="secondary-button" onClick={onRetry}>
-        <RefreshCw size={16} aria-hidden="true" />
+      <button className="secondary-button" onClick={onRetry} type="button">
+        <RefreshCw size={16} />
         Try again
       </button>
     </div>
@@ -56,204 +42,161 @@ function ErrorState({ message, onRetry }) {
 function App() {
   const [todos, setTodos] = useState([]);
   const [title, setTitle] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
-  const [activeTodoId, setActiveTodoId] = useState(null);
+  const [actionError, setActionError] = useState('');
 
-  const completedCount = useMemo(
-    () => todos.filter((todo) => todo.completed).length,
-    [todos],
-  );
+  const completedCount = useMemo(() => todos.filter((todo) => todo.completed).length, [todos]);
 
-  const loadTodos = async () => {
-    setIsLoading(true);
+  async function loadTodos() {
+    setLoading(true);
     setError('');
-
     try {
-      const items = await fetchTodos();
-      setTodos(items);
+      const data = await fetchTodos();
+      setTodos(Array.isArray(data) ? data : []);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Something went wrong.');
+      setError(loadError instanceof Error ? loadError.message : 'Unable to fetch todos.');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
+  }
 
   useEffect(() => {
     loadTodos();
   }, []);
 
-  const handleSubmit = async (event) => {
+  async function handleSubmit(event) {
     event.preventDefault();
-    const trimmedTitle = title.trim();
-
-    if (!trimmedTitle) {
-      setError('Please enter a todo title.');
+    const trimmed = title.trim();
+    if (!trimmed) {
+      setActionError('Please enter a todo title.');
       return;
     }
 
-    setIsCreating(true);
-    setError('');
-
+    setSubmitting(true);
+    setActionError('');
     try {
-      const createdTodo = await createTodo({ title: trimmedTitle });
-      setTodos((current) => [createdTodo, ...current]);
+      const created = await createTodo(trimmed);
+      setTodos((current) => [...current, created]);
       setTitle('');
-    } catch (createError) {
-      setError(createError instanceof Error ? createError.message : 'Failed to create todo.');
+    } catch (submitError) {
+      setActionError(submitError instanceof Error ? submitError.message : 'Unable to create todo.');
     } finally {
-      setIsCreating(false);
+      setSubmitting(false);
     }
-  };
+  }
 
-  const handleToggle = async (todoId, nextCompleted) => {
-    setActiveTodoId(todoId);
-    setError('');
-
+  async function handleToggle(todo) {
+    setActionError('');
     try {
-      const updatedTodo = await toggleTodo(todoId, { completed: nextCompleted });
-      setTodos((current) =>
-        current.map((todo) => (todo.id === todoId ? updatedTodo : todo)),
-      );
+      const updated = await updateTodo(todo.id, !todo.completed);
+      setTodos((current) => current.map((item) => (item.id === todo.id ? updated : item)));
     } catch (toggleError) {
-      setError(toggleError instanceof Error ? toggleError.message : 'Failed to update todo.');
-    } finally {
-      setActiveTodoId(null);
+      setActionError(toggleError instanceof Error ? toggleError.message : 'Unable to update todo.');
     }
-  };
+  }
 
-  const handleDelete = async (todoId) => {
-    setActiveTodoId(todoId);
-    setError('');
-
+  async function handleDelete(todoId) {
+    setActionError('');
     try {
       await deleteTodo(todoId);
-      setTodos((current) => current.filter((todo) => todo.id !== todoId));
+      setTodos((current) => current.filter((item) => item.id !== todoId));
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : 'Failed to delete todo.');
-    } finally {
-      setActiveTodoId(null);
+      setActionError(deleteError instanceof Error ? deleteError.message : 'Unable to delete todo.');
     }
-  };
+  }
 
   return (
     <main className="app-shell">
-      <section className="todo-panel" aria-labelledby="todo-heading">
-        <header className="hero-card">
+      <section className="hero-card">
+        <div>
+          <p className="eyebrow">Preview-ready Todo App</p>
+          <h1>Keep your tasks in sync with the backend.</h1>
+          <p className="hero-copy">
+            Add, complete, and remove todos with a React + Vite interface powered by the existing
+            <code> /api/todos </code> contract.
+          </p>
+        </div>
+        <div className="hero-stats" aria-label="Todo summary">
           <div>
-            <p className="eyebrow">Task manager</p>
-            <h1 id="todo-heading">Stay on top of your todos</h1>
-            <p className="hero-copy">
-              Capture tasks, mark them complete, and keep everything in sync with the backend.
-            </p>
+            <span>Total</span>
+            <strong>{todos.length}</strong>
           </div>
-          <div className="hero-stats" aria-label="Todo summary">
-            <div>
-              <span>Total</span>
-              <strong>{todos.length}</strong>
-            </div>
-            <div>
-              <span>Completed</span>
-              <strong>{completedCount}</strong>
-            </div>
+          <div>
+            <span>Done</span>
+            <strong>{completedCount}</strong>
           </div>
-        </header>
+        </div>
+      </section>
 
+      <section className="panel">
         <form className="todo-form" onSubmit={handleSubmit}>
-          <label htmlFor="todo-title" className="input-label">
-            Add a new todo
-          </label>
-          <div className="form-row">
+          <label className="input-group" htmlFor="todo-title">
+            <span className="input-label">New todo</span>
             <input
               id="todo-title"
               name="title"
               type="text"
+              placeholder="Write a task title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              placeholder="What needs to be done?"
-              className="todo-input"
-              aria-required="true"
-              disabled={isCreating}
+              disabled={submitting}
             />
-            <button type="submit" className="primary-button" disabled={isCreating} aria-disabled={isCreating}>
-              {isCreating ? (
-                <>
-                  <LoaderCircle size={18} className="spin" aria-hidden="true" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Plus size={18} aria-hidden="true" />
-                  Add todo
-                </>
-              )}
-            </button>
-          </div>
+          </label>
+          <button className="primary-button" disabled={submitting} type="submit">
+            <Plus size={16} />
+            {submitting ? 'Adding…' : 'Add todo'}
+          </button>
         </form>
 
-        {error ? (
-          <div className="inline-error" role="alert">
-            {error}
+        {actionError ? <p className="inline-error" role="alert">{actionError}</p> : null}
+
+        <div className="toolbar">
+          <h2>Tasks</h2>
+          <button className="secondary-button" onClick={loadTodos} type="button">
+            <RefreshCw size={16} />
+            Refresh
+          </button>
+        </div>
+
+        {loading ? <LoadingSkeleton /> : null}
+        {!loading && error ? <ErrorState message={error} onRetry={loadTodos} /> : null}
+        {!loading && !error && todos.length === 0 ? <EmptyState /> : null}
+
+        {!loading && !error && todos.length > 0 ? (
+          <div className="todo-list">
+            {todos.map((todo) => (
+              <article className="todo-card" key={todo.id}>
+                <button
+                  aria-label={todo.completed ? `Mark ${todo.title} as incomplete` : `Mark ${todo.title} as complete`}
+                  className={`toggle-button ${todo.completed ? 'is-complete' : ''}`}
+                  onClick={() => handleToggle(todo)}
+                  type="button"
+                >
+                  <CheckCircle2 size={20} />
+                </button>
+
+                <div className="todo-content">
+                  <h3 className={todo.completed ? 'completed' : ''}>{todo.title}</h3>
+                  <p>
+                    Created {new Date(todo.created_at).toLocaleString()} • Updated{' '}
+                    {new Date(todo.updated_at).toLocaleString()}
+                  </p>
+                </div>
+
+                <button
+                  aria-label={`Delete ${todo.title}`}
+                  className="icon-button danger"
+                  onClick={() => handleDelete(todo.id)}
+                  type="button"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </article>
+            ))}
           </div>
         ) : null}
-
-        <section className="list-section" aria-live="polite">
-          <div className="section-heading">
-            <h2>Your tasks</h2>
-            <button type="button" className="secondary-button" onClick={loadTodos} disabled={isLoading}>
-              <RefreshCw size={16} className={isLoading ? 'spin' : ''} aria-hidden="true" />
-              Refresh
-            </button>
-          </div>
-
-          {isLoading ? <TodoSkeleton /> : null}
-          {!isLoading && error && todos.length === 0 ? <ErrorState message={error} onRetry={loadTodos} /> : null}
-          {!isLoading && !error && todos.length === 0 ? <EmptyState /> : null}
-
-          {!isLoading && todos.length > 0 ? (
-            <ul className="todo-list">
-              {todos.map((todo) => {
-                const isBusy = activeTodoId === todo.id;
-
-                return (
-                  <li key={todo.id} className="todo-item">
-                    <button
-                      type="button"
-                      className="icon-toggle"
-                      onClick={() => handleToggle(todo.id, !todo.completed)}
-                      disabled={isBusy}
-                      aria-label={todo.completed ? `Mark ${todo.title} as incomplete` : `Mark ${todo.title} as complete`}
-                    >
-                      {todo.completed ? (
-                        <CheckCircle2 className="completed-icon" aria-hidden="true" />
-                      ) : (
-                        <Circle aria-hidden="true" />
-                      )}
-                    </button>
-
-                    <div className="todo-copy">
-                      <p className={todo.completed ? 'todo-title completed' : 'todo-title'}>{todo.title}</p>
-                      <p className="todo-meta">
-                        Updated {new Date(todo.updated_at).toLocaleString()}
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="delete-button"
-                      onClick={() => handleDelete(todo.id)}
-                      disabled={isBusy}
-                      aria-label={`Delete ${todo.title}`}
-                    >
-                      <Trash2 size={18} aria-hidden="true" />
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : null}
-        </section>
       </section>
     </main>
   );

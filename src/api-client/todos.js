@@ -10,18 +10,16 @@ async function request(path, options = {}) {
   });
 
   if (!response.ok) {
-    let message = 'Request failed.';
-
+    let message = 'Something went wrong.';
     try {
-      const errorBody = await response.json();
-      if (typeof errorBody?.detail === 'string') {
-        message = errorBody.detail;
+      const data = await response.json();
+      if (typeof data?.detail === 'string' && data.detail) {
+        message = data.detail;
       }
     } catch {
-      message = response.statusText || message;
+      message = response.status === 204 ? '' : message;
     }
-
-    throw new Error(message);
+    throw new Error(message || `Request failed with status ${response.status}`);
   }
 
   if (response.status === 204) {
@@ -35,17 +33,17 @@ export function fetchTodos() {
   return request('/api/todos');
 }
 
-export function createTodo(payload) {
+export function createTodo(title) {
   return request('/api/todos', {
     method: 'POST',
-    body: JSON.stringify({ title: payload.title }),
+    body: JSON.stringify({ title }),
   });
 }
 
-export function toggleTodo(id, payload) {
+export function updateTodo(id, completed) {
   return request(`/api/todos/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify({ completed: payload.completed }),
+    body: JSON.stringify({ completed }),
   });
 }
 
