@@ -18,9 +18,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
     )
-    op.create_index(op.f("ix_todos_id"), "todos", ["id"], unique=False)
 
 
 def downgrade() -> None:
-    op.drop_index(op.f("ix_todos_id"), table_name="todos")
     op.drop_table("todos")
